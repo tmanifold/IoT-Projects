@@ -1,24 +1,30 @@
 #!/usr/bin/python
 
-import getopt
 import sys
-import random
+import os
 import threading
+import RPi.GPIO as GPIO
 from time import sleep
 from coapthon.server.coap import CoAP
-from exampleresources import BasicResource, Long, Separate, Storage, Big, voidResource, XMLResource, ETAGResource, \
-    Child, \
-    MultipleEncodingResource, AdvancedResource, AdvancedResourceSeparate
+from exampleresources import BasicResource
 
-__author__ = 'Giacomo Tanganelli'
+os.system('modprobe w1-gpio')
+os.system('modprobe w1-therm')
 
 temperature_resource = BasicResource()
+
+def get_temp():
+    f = open('/sys/bus/w1/devices/28-000007550451/w1_slave')
+    lines = f.readlines()
+    f.close()
+    t_pos = lines[1].find("t=")
+    return float(lines[1][t_pos+2:t_pos+6]) / 100
 
 def update_tmp():
     global temperature_resource
 
     while True:
-        temperature_resource.payload = str(random.randint(20,30))
+        temperature_resource.payload = str(get_temp())
         sleep(2)
     
 
@@ -36,39 +42,12 @@ class CoAPServer(CoAP):
         t = threading.Thread(target=update_tmp, args=())
         t.start()
 
-
-def usage():  # pragma: no cover
-    print "coapserver.py -i <ip address> -p <port>"
-
-
-def main(argv):  # pragma: no cover
-    ip = "0.0.0.0"
-    port = 5683
-    multicast = False
-    try:
-        opts, args = getopt.getopt(argv, "hi:p:m", ["ip=", "port=", "multicast"])
-    except getopt.GetoptError:
-        usage()
-        sys.exit(2)
-    for opt, arg in opts:
-        if opt == '-h':
-            usage()
-            sys.exit()
-        elif opt in ("-i", "--ip"):
-            ip = arg
-        elif opt in ("-p", "--port"):
-            port = int(arg)
-        elif opt in ("-m", "--multicast"):
-            multicast = True
-
-    server = CoAPServer(ip, port, multicast)
-    try:
-        server.listen(10)
-    finally:
-        print "Server Shutdown"
-        server.close()
-        print "Exiting..."
-
-
-if __name__ == "__main__":  # pragma: no cover
-    main(sys.argv[1:])
+if __name__ == "__main__":
+	server = CoAPServer("0.0.0.0", 5683, False)
+    
+	try:
+		server.listen(10)
+	except KeyboardInterrupt:
+	        print "Server Shutdown"
+	        server.close()
+	        print "Exiting..."
