@@ -1,8 +1,8 @@
 #!/usr/bin/python
-import sys
-import os
-import threading
-import socket
+import sys, os, threading, socket, cv2
+from PyQt5.QtMultimedia import QCamera, QCameraInfo, QCameraImageCapture, QMediaRecorder
+
+## Reference QCamera or cv2 for video/image capture ##
 
 import RPi.GPIO as GPIO
 from time import sleep
@@ -14,19 +14,22 @@ class CameraResource(Resource):
 
     TCP_PORT = 44444
     img_path = 'monkaS.png'
-    t_sender = threading.Thread()
+    streaming = False
 
     def __init__(self, name="CameraResource", coap_server=None):
         super(CameraResource, self).__init__(name, coap_server, visible=True,
                                             observable=True, allow_children=True)
-        # max payload size will have to be ~65.5KB if sending image data as plain-text
+
         self.payload = None
         self.resource_type = "rt1"
         self.content_type = "text/plain"
         self.interface_type = "if1"
 
+
+
     # Opens a socket for sending data to the client
-    def open_socket(self):
+    #  The value of mode indicates a snapshot (0) or video stream (1)
+    def open_socket(self, mode=0):
         with socket.socket()  as sock:
             IP = socket.gethostbyname(socket.gethostname())
             sock.bind((IP, self.TCP_PORT))
@@ -35,46 +38,35 @@ class CameraResource(Resource):
             conn, addr = sock.accept()
             print ('connected by ', addr)
 
-            with open(self.img_path, 'rb') as img:
-                data = img.read(1024)
-                while (data):
-                    conn.send(data)
-                    data = img.read(1024)
+            cam = cv2.VideoCapture(0)
+
+            if mode == 0:
+                ret, frame = cam.read()
+                #r, frame = cv2.imencode('.jpg', frame, enc)
+
+                cv2.imwrite('capture.png', frame)
+
+                print ('size of frame: %d B' % len(bytearray(frame)))
+
+                with open('capture.png', 'rb') as img:
+                    data = img.read(4096)
+                    r = len(data)
+                    while (data):
+                        conn.send(data)
+                        r += len(data)
+                        data = img.read(4096)
+                        sys.stdout.write('Sent %d B          \r' % (r))
+                        sys.stdout.flush()
+
+            elif mode == 1:
+                    pass
 
             conn.close()
-
-    # send an image capture to the host specified by ip:port, wait for delay seconds
-    # def send_image(self, DEST_HOST, DEST_PORT, delay=1):
-    #     # wait for delay in seconds before sending data
-    #     sleep(delay)
-    #     try:
-    #         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #         # establish the TCP connection to the requester
-    #         print ('Establishing TCP connection to %s:%d...' % (DEST_HOST, self.TCP_PORT))
-    #         sock.connect((DEST_HOST,self.TCP_PORT))
-    #         print ('TCP connection established')
-    #
-    #         # open the image and begin sending to the requester
-    #         with open(self.img_path, 'rb') as img:
-    #             print ('sending data...')
-    #             data = img.read(1024)
-    #             while (data):
-    #                 sock.send(data)
-    #                 data = img.read(1024)
-    #                 print ('\tsent %d bytes' % len(data))
-    #
-    #     except socket.gaierror:
-    #         print('unable to establish TCP connection following GET request')
-    #     except socket.timeout:
-    #         print ('TCP connection timed out')
-    #     finally:
-    #         sock.close()
 
     # When a CoAP GET request is received, this method will ACK with a port number
     #  on which a socket will be opened for the requesting client.
     # TODO:
     #   Assign a unique port number for each client
-    #   ACK with filename and file size in addition to port number
     def render_GET(self, request):
         self.payload = str(self.TCP_PORT)
 
@@ -82,6 +74,19 @@ class CameraResource(Resource):
         socket_thread.start()
 
         return self
+
+    def render_OBSERVE(self, request):
+
+        if self.streaming == False:
+            self.payload = str(self.TCP_PORT)
+            self.streaming = True
+
+            socket_thread = threading.Thread(target=self.open_socket, args=(1))
+            socket_thread.start()
+
+        return self
+
+# end CameraResource
 
 class PIRResource(Resource):
     def __init__(self, name="PIRResource", coap_server=None):
