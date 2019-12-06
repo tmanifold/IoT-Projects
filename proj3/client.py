@@ -1,5 +1,5 @@
 
-import sys, socket, cv2
+import sys, socket, cv2, numpy
 from coapthon.client.helperclient import HelperClient
 from coapthon.utils import parse_uri
 from datetime import datetime
@@ -11,13 +11,16 @@ TCP_PORT  = 44444
 
 try:
     IP = input ("Enter server hostname/IP: ")
+    res = input ('Enter requested resource: ')
+    res_path = '/' + res
+    print ('requesting ', res_path)
     # ask CoAP server for camera resource
     client = HelperClient(server=(IP, COAP_PORT))
     method = input ('1. GET\n2. OBSERVE\n> ')
     if method == '1':
-        response = client.get('/camera')
+        response = client.get(res_path)
     elif method == '2':
-        response = client.observe('/camera')
+       response = client.observe(res_path)
     print(response.pretty_print())
 
     # check what port the server is openeing for communication
@@ -41,7 +44,6 @@ try:
                         img.write(data)
                     sys.stdout.write('\n')
 
-                    
         client.stop()
         print ('socket closed')
 
