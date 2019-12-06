@@ -1,15 +1,17 @@
 #!/usr/bin/python
-import sys, os, threading, socket, cv2
+import sys, os, threading, socket, subprocess
+# import cv2
 from picamera import PiCamera
-#from PyQt5.QtMultimedia import QCamera, QCameraInfo, QCameraImageCapture, QMediaRecorder
-
-## Reference QCamera or cv2 for video/image capture ##
 
 import RPi.GPIO as GPIO
 from time import sleep
 from coapthon.server.coap import CoAP
 from coapthon.messages.request import Request
 from coapthon.resources.resource import Resource
+
+# 0: RECORD
+# 1: STREAM
+VIDEO_MODE = 0
 
 class VideoResource(Resource):
     TCP_PORT = 44444
@@ -38,8 +40,11 @@ class VideoResource(Resource):
         return self
 
     def open_socket(self, port):
-
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        picam = PiCamera()
+        picam.resolution = (1920, 1080)
+        picam.framerate  = 10
+        
+        with socket.socket() as sock:
             IP = socket.gethostbyname(socket.gethostname())
             sock.bind((IP, port))
             print ('Listening for connections on %s:%d' % (IP, port))
@@ -47,19 +52,24 @@ class VideoResource(Resource):
 
             conn, addr = sock.accept()
             print ('connected by ', addr)
-
-            cam = cv2.VideoCapture(0)
-
+            
+            conn.makefile('wb')
+            
+            picam.start_recording(conn, format='h264')
+            
             while self.streaming:
-                ret, frame = cam.read()
-                data = cv2.imencode('.png', frame)[1].tostring()
-                sock.sendall(data)
+                picam.wait_recording(5)
+            
+            picam.stop_recording()
+            conn.close()
+            
 # end VideoResource
 
 class SnapshotResource(Resource):
 
     TCP_PORT = 44444
-
+    camera = None
+	
     def __init__(self, name='SnapshotResource', coap_server=None):
         super(SnapshotResource, self).__init__(name, coap_server, visible=True,
                                             observable=True, allow_children=True)
@@ -69,10 +79,15 @@ class SnapshotResource(Resource):
         self.interface_type = "if1"
 
     def capture_image(self):
-        camp = cv2.VideoCapture(0)
-        ret, frame = cam.read()
+        #camp = cv2.VideoCapture(0)
+        #ret, frame = cam.read()
 
-        cv2.imwrite('capture.png', frame)
+        #cv2.imwrite('capture.png', frame)
+        camera = PiCamera()
+        camera.resolution = (1024, 768)
+        camera.startpreview()
+        sleep(2)
+        camera.capture('capture.jpg')
 
     # Opens a socket for sending data to the client
     #  The value of mode indicates a snapshot (0) or video stream (1)
@@ -128,13 +143,15 @@ class PIRResource(Resource):
         self.content_type = "text/plain"
         self.interface_type = "if1"
 
-        GPIO.setmode(GPIO.BOARD)
+        GPIO.setmode(GPIO.BCM)
         GPIO.setup(self.PIN, GPIO.IN)
-        GPIO.add_event_detect(self.PIN, GPIO.RISING, callback=self.on_montion)
+        
+        GPIO.add_event_detect(self.PIN, GPIO.RISING, callback=self.on_motion)
 
-    def on_motion(self):
+    def on_motion(self, PIN):
         # capture single image
         cam = PiCamera()
+        print ('motion detected')
 
     def render_GET(self, request):
         return self

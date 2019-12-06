@@ -1,5 +1,7 @@
 
-import sys, socket, cv2, numpy
+import sys, socket
+# import cv2
+import coapthon
 from coapthon.client.helperclient import HelperClient
 from coapthon.utils import parse_uri
 from datetime import datetime
@@ -25,6 +27,8 @@ try:
 
     # check what port the server is openeing for communication
     if (server_port := int(response.payload)) is not None:
+    #if response.payload is not None:
+    #    server_port = int(response.payload)
         server_ip = response.source[0]
         # attempt to establish comms with the server
         with socket.socket() as sock:
