@@ -13,16 +13,14 @@ TCP_PORT  = 44444
 
 try:
     IP = input ("Enter server hostname/IP: ")
-    res = input ('Enter requested resource: ')
-    res_path = '/' + res
-    print ('requesting ', res_path)
+    #res = input ('Enter requested resource: ')
+    #res_path = '/' + res
+    #print ('requesting ', res_path)
     # ask CoAP server for camera resource
     client = HelperClient(server=(IP, COAP_PORT))
-    method = input ('1. GET\n2. OBSERVE\n> ')
-    if method == '1':
-        response = client.get(res_path)
-    elif method == '2':
-       response = client.observe(res_path)
+    #method = input ('1. GET\n2. OBSERVE\n> ')
+    response = client.get('snapshot')
+
     print(response.pretty_print())
 
     # check what port the server is openeing for communication
@@ -35,18 +33,17 @@ try:
             sock.connect((server_ip, server_port))
             print ('connected to %s:%d' % (server_ip, server_port))
 
-            if method == '1':
-                with open('recv.png', 'wb') as img:
-                    r = 0
-                    while True:
-                        data = sock.recv(4096)
-                        if not data:
-                            break
-                        r += len(data)
-                        sys.stdout.write('received %d B         \r' % (r))
-                        sys.stdout.flush()
-                        img.write(data)
-                    sys.stdout.write('\n')
+            with open('recv.png', 'wb') as img:
+                r = 0
+                while True:
+                    data = sock.recv(4096)
+                    if not data:
+                        break
+                    r += len(data)
+                    sys.stdout.write('received %d B         \r' % (r))
+                    sys.stdout.flush()
+                    img.write(data)
+                sys.stdout.write('\n')
 
         client.stop()
         print ('socket closed')
