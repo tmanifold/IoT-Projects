@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import sys, os, threading, socket, smtplib, ssl, email
+import sys, os, threading, socket, smtplib, ssl, email, subprocess
 import RPi.GPIO as GPIO
 
 from time import sleep
@@ -19,6 +19,7 @@ VIDEO_MODE = 0
 
 PICAM = PiCamera()
 PICAM.vflip = True
+PICAM.hflip = True
 cam_lock = threading.Lock()
 
 def get_LAN_IP():
@@ -39,8 +40,6 @@ class VideoResource(Resource):
     TCP_PORT = 44444
     streaming = False
     
-    
-
     def __init__(self, name='VideoResource', coap_server=None):
         super(VideoResource, self).__init__(name, coap_server, visible=True,
                                             observable=True, allow_children=True)
@@ -68,29 +67,33 @@ class VideoResource(Resource):
         cam_lock.acquire()
         
         PICAM.resolution = (1920, 1080)
-        PICAM.framerate  = 10
+        PICAM.framerate  = 30
         
-        with socket.socket() as sock:
-            #IP = socket.gethostbyname(socket.gethostname())
-            IP = get_LAN_IP()
-            sock.bind((IP, port))
-            print ('Listening for connections on %s:%d' % (IP, port))
-            sock.listen()
+        try:
+            with socket.socket() as sock:
+                #IP = socket.gethostbyname(socket.gethostname())
+                IP = get_LAN_IP()
+                sock.bind((IP, port))
+                print ('Listening for connections on %s:%d' % (IP, port))
+                sock.listen()
 
-            conn, addr = sock.accept()
-            print ('connected by ', addr)
-            
-            conn.makefile('wb')
-            
-            PICAM.start_recording(conn, format='h264')
-            
-            while self.streaming:
-                picam.wait_recording(5)
-            
-            PICAM.stop_recording()
+                conn, addr = sock.accept()
+                print ('connected by ', addr)
+                
+                conn = conn.makefile('wb')
+                
+                PICAM.start_recording(conn, format='h264')
+                
+                while self.streaming:
+                    PICAM.wait_recording(5)
+                
+                PICAM.stop_recording()
+                #conn.close()
+        except BrokenPipeError:
+            print ('stream terminated')
+        finally:
             conn.close()
-        
-        cam_lock.release()
+            cam_lock.release()
             
 # end VideoResource
 
