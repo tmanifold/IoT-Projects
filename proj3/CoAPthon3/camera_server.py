@@ -71,7 +71,6 @@ class VideoResource(Resource):
 
         try:
             with socket.socket() as sock:
-                #IP = socket.gethostbyname(socket.gethostname())
                 IP = get_LAN_IP()
                 sock.bind((IP, port))
                 print ('Listening for connections on %s:%d' % (IP, port))
@@ -88,7 +87,6 @@ class VideoResource(Resource):
                     PICAM.wait_recording(5)
 
                 PICAM.stop_recording()
-                #conn.close()
         except BrokenPipeError:
             print ('stream terminated')
         finally:
@@ -112,10 +110,6 @@ class SnapshotResource(Resource):
         self.interface_type = "if1"
 
     def capture_image(self):
-        #camp = cv2.VideoCapture(0)
-        #ret, frame = cam.read()
-
-        #cv2.imwrite('capture.png', frame)
 
         cam_lock.acquire()
 
@@ -131,7 +125,6 @@ class SnapshotResource(Resource):
         with socket.socket()  as sock:
 
             IP = get_LAN_IP()
-            #IP = '0.0.0.0'
             sock.bind((IP, port))
             print ('Listening for TCP connections on %s:%d' % (IP, port))
             sock.listen()
@@ -139,8 +132,6 @@ class SnapshotResource(Resource):
             print ('connected by ', addr)
 
             self.capture_image()
-
-            #print ('size of frame: %d B' % len(bytearray(frame)))
 
             with open('capture.jpg', 'rb') as img:
                 data = img.read(4096)
@@ -151,17 +142,12 @@ class SnapshotResource(Resource):
                     data = img.read(4096)
                     sys.stdout.write('Sent %d B          \r' % (r))
                     sys.stdout.flush()
-
-
             conn.close()
 
     # When a CoAP GET request is received, this method will ACK with a port number
     #  on which a socket will be opened for the requesting client.
-    # TODO:
-    #   Assign a unique port number for each client
     def render_GET(self, request):
         self.payload = str(self.TCP_PORT)
-
         socket_thread = threading.Thread(target=self.open_socket, args=((self.TCP_PORT,)))
         socket_thread.start()
 
