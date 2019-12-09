@@ -156,14 +156,10 @@ class SnapshotResource(Resource):
 # end SnapshotResource
 
 class PIRResource(Resource):
-
     global PICAM
-
     PIR = 7
     timeout = 120 # seconds to wait before emailing
-
     send_mail = True
-
     capture_index = 0
 
     def __init__(self, name="PIRResource", coap_server=None):
@@ -227,7 +223,6 @@ class PIRResource(Resource):
                 mail.sendmail(sender, receiver, text)
 
             wait_thread = threading.Thread(target=self.mail_wait, args=((self.timeout,)))
-
 
     def mail_wait(self, timeout):
         sleep(timeout)

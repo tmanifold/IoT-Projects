@@ -1,12 +1,9 @@
-
 import sys, socket, subprocess
-# import cv2
 import coapthon
 from coapthon.client.helperclient import HelperClient
 from coapthon.utils import parse_uri
 from datetime import datetime
 
-#HOST = input ("enter host: ")
 HOST = socket.gethostbyname(socket.gethostname())
 COAP_PORT = 55555
 TCP_PORT  = 44444
@@ -24,8 +21,6 @@ try:
 
     # check what port the server is openeing for communication
     if (server_port := int(response.payload)) is not None:
-    #if response.payload is not None:
-    #    server_port = int(response.payload)
         server_ip = response.source[0]
         # attempt to establish comms with the server
         with socket.socket() as sock:
@@ -64,4 +59,3 @@ try:
 
 except KeyboardInterrupt:
     client.stop()
-#print('Received: ', repr(data), ' | ', data.decode())
