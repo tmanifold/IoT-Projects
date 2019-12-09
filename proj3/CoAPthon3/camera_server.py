@@ -24,22 +24,22 @@ cam_lock = threading.Lock()
 
 def get_LAN_IP():
     gateway = os.popen("ip -4 route show default").read().split()
-    
+
     ip = ''
-    
+
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.connect((gateway[2], 0))
         ip = sock.getsockname()[0]
-    
+
     return ip
 
 class VideoResource(Resource):
-    
+
     global PICAM
-    
+
     TCP_PORT = 44444
     streaming = False
-    
+
     def __init__(self, name='VideoResource', coap_server=None):
         super(VideoResource, self).__init__(name, coap_server, visible=True,
                                             observable=True, allow_children=True)
@@ -63,12 +63,12 @@ class VideoResource(Resource):
         return self
 
     def open_socket(self, port):
-        
+
         cam_lock.acquire()
-        
+
         PICAM.resolution = (1920, 1080)
         PICAM.framerate  = 30
-        
+
         try:
             with socket.socket() as sock:
                 #IP = socket.gethostbyname(socket.gethostname())
@@ -79,14 +79,14 @@ class VideoResource(Resource):
 
                 conn, addr = sock.accept()
                 print ('connected by ', addr)
-                
+
                 conn = conn.makefile('wb')
-                
+
                 PICAM.start_recording(conn, format='h264')
-                
+
                 while self.streaming:
                     PICAM.wait_recording(5)
-                
+
                 PICAM.stop_recording()
                 #conn.close()
         except BrokenPipeError:
@@ -94,15 +94,15 @@ class VideoResource(Resource):
         finally:
             conn.close()
             cam_lock.release()
-            
+
 # end VideoResource
 
 class SnapshotResource(Resource):
 
     global PICAM
 
-    TCP_PORT = 44444    
-	
+    TCP_PORT = 44444
+
     def __init__(self, name='SnapshotResource', coap_server=None):
         super(SnapshotResource, self).__init__(name, coap_server, visible=True,
                                             observable=True, allow_children=True)
@@ -116,20 +116,20 @@ class SnapshotResource(Resource):
         #ret, frame = cam.read()
 
         #cv2.imwrite('capture.png', frame)
-        
+
         cam_lock.acquire()
-        
+
         PICAM.resolution = (1024, 768)
         sleep(2)
         PICAM.capture('capture.jpg')
-        
+
         cam_lock.release()
 
     # Opens a socket for sending data to the client
     #  The value of mode indicates a snapshot (0) or video stream (1)
     def open_socket(self, port):
         with socket.socket()  as sock:
-            
+
             IP = get_LAN_IP()
             #IP = '0.0.0.0'
             sock.bind((IP, port))
@@ -177,7 +177,7 @@ class PIRResource(Resource):
     timeout = 120 # seconds to wait before emailing
 
     send_mail = True
-    
+
     capture_index = 0
 
     def __init__(self, name="PIRResource", coap_server=None):
@@ -187,66 +187,66 @@ class PIRResource(Resource):
         self.resource_type = "rt1"
         self.content_type = "text/plain"
         self.interface_type = "if1"
-        
+
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(self.PIR, GPIO.IN)
         GPIO.add_event_detect(self.PIR, GPIO.BOTH, callback=self.on_motion)
-        
+
     def on_motion(self, PIN):
-        
+
         MAX_CAPTURES = 10
-        
+
         fname = f'capture{self.capture_index % MAX_CAPTURES}.jpg'
         sender = 'iot433proj3@gmail.com'
         receiver = 'tdmanifo@iu.edu'
-        
+
         print(f'motion detected {self.capture_index}')
         cam_lock.acquire()
-        
+
         PICAM.resolution = (1024, 768)
         #PICAM.start_preview()
         #sleep(2)
         PICAM.capture(fname)
-        
+
         cam_lock.release()
-        
+
         self.capture_index += 1
-        
+
         if self.send_mail == True:
 
             print ('send email')
-                            
+
             self.send_mail = False
-            
+
             msg = MIMEMultipart()
             msg['From'] = sender
             msg['To'] = receiver
             msg['subject'] = 'Motion detected'
-            
+
             with open(fname, 'rb') as img:
                 part = MIMEBase('application', 'octet-stream')
                 part.set_payload(img.read())
-            
+
             encoders.encode_base64(part)
             part.add_header('Content-Disposition', f'attatchment; filename={fname}',)
-            
+
             msg.attach(part)
             text = msg.as_string()
-            
+
             ssl_port = 465
             context = ssl.create_default_context()
-            
+
             with smtplib.SMTP_SSL('smtp.gmail.com', ssl_port, context=context) as mail:
                 mail.login(sender, 'Testing433')
                 mail.sendmail(sender, receiver, text)
-            
+
             wait_thread = threading.Thread(target=self.mail_wait, args=((self.timeout,)))
-                
-        
+
+
     def mail_wait(self, timeout):
         sleep(timeout)
-        self.send_mail = True        
-        
+        self.send_mail = True
+
     def render_GET(self, request):
         return self
 
@@ -269,18 +269,9 @@ class CoAPServer(CoAP):
         self.add_resource('PIR', self.pir)
 
         #self.init_PIR()
-        
+
         print ('Starting server on %s:%d' % (host, port))
         print (self.root.dump())
-
-    def init_PIR(self):
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setup(self.PIR, GPIO.IN)
-        GPIO.add_event_detect(self.PIR, GPIO.RISING, callback=self.on_motion)
-    
-    def on_motion(self, PIN):
-        print('motion detected')
-
 
 # end CoAPServer
 
